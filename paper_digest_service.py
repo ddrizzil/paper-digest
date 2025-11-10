@@ -35,12 +35,18 @@ else:
     ssl._create_default_https_context = _create_unverified_https_context
 
 print("Checking NLTK data...")
+NLTK_DOWNLOAD_DIR = Path.home() / "nltk_data"
+NLTK_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+if str(NLTK_DOWNLOAD_DIR) not in nltk.data.path:
+    nltk.data.path.append(str(NLTK_DOWNLOAD_DIR))
+
 try:
     nltk.data.find('corpora/wordnet')
     print("✓ wordnet found")
 except LookupError:
     print("Downloading wordnet...")
-    nltk.download('wordnet')
+    nltk.download('wordnet', download_dir=str(NLTK_DOWNLOAD_DIR))
+    nltk.data.find('corpora/wordnet')
     print("✓ wordnet downloaded")
 
 try:
@@ -48,7 +54,8 @@ try:
     print("✓ omw-1.4 found")
 except LookupError:
     print("Downloading omw-1.4...")
-    nltk.download('omw-1.4')
+    nltk.download('omw-1.4', download_dir=str(NLTK_DOWNLOAD_DIR))
+    nltk.data.find('corpora/omw-1.4')
     print("✓ omw-1.4 downloaded")
 
 from nltk.stem import WordNetLemmatizer
@@ -617,12 +624,14 @@ def nlp_score_keyword_only(text: str, learned_weights: Dict[str, float]) -> floa
                     base_weight = GROUP_WEIGHT_DEFAULT
                 score += base_weight * (1.0 + learned_weights.get(phrase, 0.0))
                 break
+
     try:
         vectorizer = TfidfVectorizer()
         tfidf = vectorizer.fit_transform([text] + ALL_KEYWORDS)
         sim_score = cosine_similarity(tfidf[0:1], tfidf[1:]).max()
     except ValueError:
         sim_score = 0.0
+
     keyword_score = score + sim_score * 2.0
     return max(0.0, min(10.0, keyword_score))
 
