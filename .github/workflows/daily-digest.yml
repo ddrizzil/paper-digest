@@ -1,0 +1,33 @@
+name: Daily Paper Digest
+
+on:
+  schedule:
+    # Runs every day at 13:00 UTC (8 AM US Eastern)
+    - cron: '0 13 * * *'
+  workflow_dispatch:  # allows manual runs too
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the digest service
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          RECIPIENTS: ${{ secrets.RECIPIENTS }}
+        run: |
+          python paper_digest_service.py
