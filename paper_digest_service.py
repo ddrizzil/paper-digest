@@ -20,14 +20,13 @@ from urllib.parse import quote_plus
 import feedparser
 import numpy as np
 import requests
-import nltk
-from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+# ============ NLTK SETUP (must be before lemmatizer usage) ============
+import nltk
 import ssl
 
-# Fix SSL certificate issues in some environments
 try:
     _create_unverified_https_context = ssl._create_unverified_context
 except AttributeError:
@@ -35,30 +34,27 @@ except AttributeError:
 else:
     ssl._create_default_https_context = _create_unverified_https_context
 
-# Download NLTK data if not present
-def ensure_nltk_data():
-    """Ensure required NLTK data is downloaded"""
-    required_packages = ['wordnet', 'omw-1.4']
-    
-    for package in required_packages:
-        try:
-            nltk.data.find(f'corpora/{package}')
-        except LookupError:
-            print(f"Downloading NLTK {package}...")
-            nltk.download(package, quiet=True)
-
-# Call this before creating lemmatizer
-ensure_nltk_data()
-
-# Now safe to import and use
-
-lemmatizer = WordNetLemmatizer()
-
-# Ensure required NLTK corpora are present (download quietly if missing).
+print("Checking NLTK data...")
 try:
-    nltk.data.find("corpora/wordnet")
+    nltk.data.find('corpora/wordnet')
+    print("✓ wordnet found")
 except LookupError:
-    nltk.download("wordnet", quiet=True)
+    print("Downloading wordnet...")
+    nltk.download('wordnet')
+    print("✓ wordnet downloaded")
+
+try:
+    nltk.data.find('corpora/omw-1.4')
+    print("✓ omw-1.4 found")
+except LookupError:
+    print("Downloading omw-1.4...")
+    nltk.download('omw-1.4')
+    print("✓ omw-1.4 downloaded")
+
+from nltk.stem import WordNetLemmatizer
+lemmatizer = WordNetLemmatizer()
+print("✓ Lemmatizer initialized")
+# ============ END NLTK SETUP ============
 
 # Attempt to import scholarly + proxy support; continue gracefully if absent.
 try:
@@ -181,8 +177,6 @@ FEEDS = [
     "https://arxiv.org/rss/physics.optics",
     "https://arxiv.org/rss/physics.ins-det",
 ]
-
-lemmatizer = WordNetLemmatizer()
 
 # Expanded keyword groups spanning commercial radar, climate, & disaster response.
 KEYWORD_GROUPS = {
