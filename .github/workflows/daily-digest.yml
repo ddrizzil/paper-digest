@@ -2,32 +2,66 @@ name: Daily Paper Digest
 
 on:
   schedule:
-    # Runs every day at 13:00 UTC (8 AM US Eastern)
-    - cron: '0 13 * * *'
-  workflow_dispatch:  # allows manual runs too
+    # Run every day at 6:00 AM UTC (adjust timezone as needed)
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   run-digest:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run the digest service
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          RECIPIENTS: ${{ secrets.RECIPIENTS }}
-        run: |
-          python paper_digest_service.py
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'  # Cache pip dependencies
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --break-system-packages -r requirements.txt
+    
+    - name: Download NLTK data
+      run: |
+        python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+    
+    - name: Download sentence-transformers model (cache)
+      run: |
+        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+    
+    - name: Create necessary directories
+      run: |
+        mkdir -p logs
+        mkdir -p config
+        mkdir -p funding_cache
+    
+    - name: Run paper digest
+      env:
+        SMTP_HOST: ${{ secrets.SMTP_HOST }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        SMTP_USER: ${{ secrets.SMTP_USER }}
+        SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      run: |
+        python paper_digest_service.py
+    
+    - name: Upload logs as artifact
+      if: always()  # Upload even if digest fails
+      uses: actions/upload-artifact@v4
+      with:
+        name: digest-logs-${{ github.run_number }}
+        path: |
+          logs/*.csv
+          logs/*.html
+        retention-days: 30
+    
+    - name: Commit and push logs (optional)
+      if: success()
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add logs/*.csv logs/*.html
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update paper digest logs [skip ci]" && git push)
