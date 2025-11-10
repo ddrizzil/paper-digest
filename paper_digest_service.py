@@ -20,9 +20,45 @@ from urllib.parse import quote_plus
 import feedparser
 import numpy as np
 import requests
+import nltk
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+import ssl
+
+# Fix SSL certificate issues in some environments
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+# Download NLTK data if not present
+def ensure_nltk_data():
+    """Ensure required NLTK data is downloaded"""
+    required_packages = ['wordnet', 'omw-1.4']
+    
+    for package in required_packages:
+        try:
+            nltk.data.find(f'corpora/{package}')
+        except LookupError:
+            print(f"Downloading NLTK {package}...")
+            nltk.download(package, quiet=True)
+
+# Call this before creating lemmatizer
+ensure_nltk_data()
+
+# Now safe to import and use
+
+lemmatizer = WordNetLemmatizer()
+
+# Ensure required NLTK corpora are present (download quietly if missing).
+try:
+    nltk.data.find("corpora/wordnet")
+except LookupError:
+    nltk.download("wordnet", quiet=True)
 
 # Attempt to import scholarly + proxy support; continue gracefully if absent.
 try:
@@ -970,12 +1006,12 @@ def load_history_papers(exclude_links: set) -> Tuple[List[dict], set]:
             except (TypeError, ValueError):
                 score = 0.0
             paper = {
-                "title": title,
-                "summary": summary,
-                "link": link,
+             "title": title,
+             "summary": summary,
+             "link": link,
                 "published": published,
                 "citations": 0,
-                "authors": authors,
+             "authors": authors,
                 "doi": f"https://scholar.google.com/scholar?q={quote_plus(title)}",
                 "source": "history",
                 "score": score,
