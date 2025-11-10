@@ -1,7 +1,6 @@
 feedparser
 numpy
 requests
-nltk
 scikit-learn
 sentence-transformers
 pandas

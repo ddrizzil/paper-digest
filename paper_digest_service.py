@@ -23,46 +23,6 @@ import requests
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ============ NLTK SETUP (must be before lemmatizer usage) ============
-import nltk
-import ssl
-
-try:
-    _create_unverified_https_context = ssl._create_unverified_context
-except AttributeError:
-    pass
-else:
-    ssl._create_default_https_context = _create_unverified_https_context
-
-print("Checking NLTK data...")
-NLTK_DOWNLOAD_DIR = Path.home() / "nltk_data"
-NLTK_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-if str(NLTK_DOWNLOAD_DIR) not in nltk.data.path:
-    nltk.data.path.append(str(NLTK_DOWNLOAD_DIR))
-
-try:
-    nltk.data.find('corpora/wordnet')
-    print("✓ wordnet found")
-except LookupError:
-    print("Downloading wordnet...")
-    nltk.download('wordnet', download_dir=str(NLTK_DOWNLOAD_DIR))
-    nltk.data.find('corpora/wordnet')
-    print("✓ wordnet downloaded")
-
-try:
-    nltk.data.find('corpora/omw-1.4')
-    print("✓ omw-1.4 found")
-except LookupError:
-    print("Downloading omw-1.4...")
-    nltk.download('omw-1.4', download_dir=str(NLTK_DOWNLOAD_DIR))
-    nltk.data.find('corpora/omw-1.4')
-    print("✓ omw-1.4 downloaded")
-
-from nltk.stem import WordNetLemmatizer
-lemmatizer = WordNetLemmatizer()
-print("✓ Lemmatizer initialized")
-# ============ END NLTK SETUP ============
-
 # Attempt to import scholarly + proxy support; continue gracefully if absent.
 try:
     from scholarly import ProxyGenerator, scholarly  # type: ignore
@@ -608,10 +568,10 @@ def update_keyword_weights(clicked_titles: Iterable[str]) -> Tuple[Dict[str, flo
 def nlp_score_keyword_only(text: str, learned_weights: Dict[str, float]) -> float:
     if not text or not text.strip():
         return 0.0
-    tokens = [lemmatizer.lemmatize(t) for t in re.findall(r"\w+", text.lower())]
+    tokens = [t.lower() for t in re.findall(r"\w+", text.lower())]
     score = 0.0
     for phrase in ALL_KEYWORDS:
-        phrase_tokens = [lemmatizer.lemmatize(t) for t in phrase.lower().split()]
+        phrase_tokens = [t.lower() for t in phrase.lower().split()]
         for i in range(len(tokens) - len(phrase_tokens) + 1):
 
             if tokens[i:i + len(phrase_tokens)] == phrase_tokens:
@@ -933,6 +893,7 @@ def fetch_crossref_citation(doi: str) -> int:
     count = resp.json().get("message", {}).get("is-referenced-by-count", 0) or 0
     CITATION_CACHE[doi] = count
     return count
+
 
 def enrich_with_citations(paper: dict) -> None:
     """Ensure every paper has a citation count."""
