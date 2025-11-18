@@ -1624,8 +1624,8 @@ def run_once() -> None:
             paper["score"] = enhanced_score(paper, now, learned_weights)
             add_adjacent_candidate(paper)
             all_papers.append(paper)
-    if len(adjacent) < ADJACENT_TARGET and scholarly is not None:
-        needed_adj = ADJACENT_TARGET - len(adjacent)
+    if len(adjacent) < adjacent_target and scholarly is not None:
+        needed_adj = adjacent_target - len(adjacent)
         adjacent_scholar = fetch_scholar_papers(
             now.year - 7,
             now.year,
@@ -1670,15 +1670,15 @@ def run_once() -> None:
         dedup_sections = cluster_weekly_sections(all_papers)
 
     logger.info(
-        "Paper pools – rss:%d history:%d decade_crossref:%d decade_scholar:%d adjacent_crossref:%d adjacent_scholar:%d recent:%d decade:%d adjacent:%d",
+        "Paper pools – rss:%d history:%d decade_crossref:%d decade_scholar:%d adjacent_crossref:%d adjacent_scholar:%d rf:%d heritage:%d adjacent:%d",
         len(papers),
         len(history_papers),
         len(decade_crossref),
         len(decade_scholar),
         len(adjacent_crossref),
         len(adjacent_scholar),
-        len(recent),
-        len(last_decade),
+        len(rf_papers),
+        len(heritage_papers),
         len(adjacent)
     )
 
