@@ -1393,21 +1393,29 @@ def email_digest(sections: List[Tuple[str, List[dict]]],
     msg.attach(MIMEText(html_body, "html"))
 
     if not smtp_host:
-        logger.warning("SMTP_HOST is not set; skipping email send.")
-        return
+        logger.error("SMTP_HOST is not set; cannot send email. Please set SMTP_HOST secret in GitHub repository settings.")
+        raise ValueError("SMTP_HOST environment variable is required for email sending")
+
+    if not smtp_user or not smtp_pass:
+        logger.error("SMTP credentials missing (SMTP_USER or SMTP_PASS not set); cannot send email. Please set these secrets in GitHub repository settings.")
+        raise ValueError("SMTP_USER and SMTP_PASS environment variables are required for email sending")
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            logger.info("Connecting to SMTP server %s:%d", smtp_host, smtp_port)
+        logger.info("Attempting to send email via SMTP server %s:%d", smtp_host, smtp_port)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            logger.info("Connected to SMTP server, starting TLS...")
             server.starttls()
-            if not smtp_user or not smtp_pass:
-                logger.warning("SMTP credentials missing; skipping email send.")
-                return
-            logger.info("Logging in to SMTP server as %s", smtp_user)
+            logger.info("TLS started, logging in as %s...", smtp_user)
             server.login(smtp_user, smtp_pass)
-            logger.info("Sending email to: %s", ", ".join(recipients))
+            logger.info("Login successful, sending email to: %s", ", ".join(recipients))
             server.sendmail(SENDER, recipients, msg.as_string())
-        logger.info("Email successfully sent to %s", ", ".join(recipients))
+        logger.info("✓ Email successfully sent to %s", ", ".join(recipients))
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error("SMTP authentication failed: %s. Check that SMTP_USER and SMTP_PASS are correct.", str(e))
+        raise
+    except smtplib.SMTPException as e:
+        logger.error("SMTP error occurred: %s", str(e))
+        raise
     except Exception as e:
         logger.error("Failed to send email: %s", str(e), exc_info=True)
         raise
