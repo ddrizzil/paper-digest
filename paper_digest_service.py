@@ -1146,6 +1146,150 @@ def log_papers(sections: List[Tuple[str, List[dict]]]) -> None:
             ])
     logger.info("Logged %d new papers.", len(rows))
 
+def build_rss_feed(sections: List[Tuple[str, List[dict]]]) -> None:
+    """Generate RSS 2.0 feed from digest sections."""
+    from xml.etree.ElementTree import Element, SubElement, tostring
+    from xml.dom import minidom
+    
+    now = datetime.now(timezone.utc)
+    
+    # Create RSS root
+    rss = Element('rss', version='2.0')
+    rss.set('xmlns:atom', 'http://www.w3.org/2005/Atom')
+    
+    channel = SubElement(rss, 'channel')
+    
+    # Channel metadata
+    SubElement(channel, 'title').text = 'Paper Digest - Daily Research Papers'
+    SubElement(channel, 'link').text = 'https://github.com/ddrizzil/paper-digest'
+    SubElement(channel, 'description').text = 'Curated daily digest of research papers in cultural heritage, imaging, RF systems, signal processing, and related fields'
+    SubElement(channel, 'language').text = 'en-us'
+    SubElement(channel, 'lastBuildDate').text = now.strftime('%a, %d %b %Y %H:%M:%S %z')
+    SubElement(channel, 'pubDate').text = now.strftime('%a, %d %b %Y %H:%M:%S %z')
+    SubElement(channel, 'generator').text = 'Paper Digest Service'
+    
+    # Atom self link
+    atom_link = SubElement(channel, 'atom:link')
+    atom_link.set('href', 'https://raw.githubusercontent.com/ddrizzil/paper-digest/main/feed.xml')
+    atom_link.set('rel', 'self')
+    atom_link.set('type', 'application/rss+xml')
+    
+    # Collect all papers from all sections
+    all_papers = []
+    for section_label, papers in sections:
+        for paper in papers:
+            # Add section info to paper for context
+            paper_with_section = paper.copy()
+            paper_with_section['section'] = section_label
+            all_papers.append(paper_with_section)
+    
+    # Sort by score (relevance) descending, then by publication date
+    all_papers.sort(key=lambda p: (
+        -float(p.get('score', 0) or 0),
+        -(p.get('published', now).timestamp() if isinstance(p.get('published'), datetime) else now.timestamp())
+    ))
+    
+    # Limit to most recent 50 items for RSS feed
+    all_papers = all_papers[:50]
+    
+    # Add items
+    for paper in all_papers:
+        item = SubElement(channel, 'item')
+        
+        title = paper.get('title', 'Untitled')
+        SubElement(item, 'title').text = title
+        
+        link = paper.get('link', '')
+        if link:
+            SubElement(item, 'link').text = link
+        
+        # Description with summary and metadata
+        description_parts = []
+        summary = paper.get('summary', '').strip()
+        if summary:
+            description_parts.append(summary)
+        
+        authors = paper.get('authors', '')
+        if authors:
+            description_parts.append(f"Authors: {authors}")
+        
+        section = paper.get('section', '')
+        if section:
+            description_parts.append(f"Category: {section}")
+        
+        score = paper.get('score', 0)
+        if score:
+            description_parts.append(f"Relevance Score: {score:.2f}")
+        
+        citations = paper.get('citations', 0)
+        if citations:
+            description_parts.append(f"Citations: {citations}")
+        
+        description = ' | '.join(description_parts) if description_parts else 'No description available'
+        # Escape XML special characters
+        import html
+        description = html.escape(description)
+        desc_elem = SubElement(item, 'description')
+        desc_elem.text = description
+        
+        # Publication date
+        published = paper.get('published')
+        if published:
+            if isinstance(published, datetime):
+                pub_date = published
+            else:
+                try:
+                    pub_date = parsedate_to_datetime(str(published))
+                except:
+                    pub_date = now
+        else:
+            pub_date = now
+        
+        if pub_date.tzinfo is None:
+            pub_date = pub_date.replace(tzinfo=timezone.utc)
+        
+        SubElement(item, 'pubDate').text = pub_date.strftime('%a, %d %b %Y %H:%M:%S %z')
+        
+        # GUID (use link or title+doi)
+        guid = SubElement(item, 'guid')
+        doi = paper.get('doi', '')
+        if doi:
+            guid.text = doi
+        elif link:
+            guid.text = link
+        else:
+            guid.text = f"paper-digest-{hash(title)}"
+        guid.set('isPermaLink', 'false' if doi else ('true' if link else 'false'))
+        
+        # Author
+        if authors:
+            # RSS 2.0 uses email format, but we'll use name
+            author_text = authors.split(',')[0].strip() if ',' in authors else authors.strip()
+            SubElement(item, 'author').text = author_text
+        
+        # Category (section)
+        if section:
+            SubElement(item, 'category').text = section
+    
+    # Format XML nicely
+    xml_str = tostring(rss, encoding='unicode')
+    dom = minidom.parseString(xml_str)
+    pretty_xml = dom.toprettyxml(indent='  ', encoding=None)
+    
+    # Remove the XML declaration line that minidom adds (we'll add our own)
+    lines = pretty_xml.split('\n')
+    if lines and lines[0].startswith('<?xml'):
+        lines = lines[1:]
+    pretty_xml = '\n'.join(lines).strip()
+    
+    # Write RSS feed
+    feed_path = Path('feed.xml')
+    with open(feed_path, 'w', encoding='utf-8') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write(pretty_xml)
+    
+    logger.info("RSS feed generated with %d items: %s", len(all_papers), feed_path)
+
 def build_html_archive() -> None:
     import pandas as pd  # Lazy import to avoid dependency if not installed.
     if not os.path.exists(LOG_FILE):
@@ -1471,6 +1615,7 @@ def run_once() -> None:
 
     log_papers(dedup_sections)
     build_html_archive()
+    build_rss_feed(dedup_sections)
     email_digest(dedup_sections, weight_stats, DIGEST_MODE)
 
 if __name__ == "__main__":

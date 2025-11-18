@@ -56,13 +56,13 @@ jobs:
           logs/*.html
         retention-days: 30
     
-    - name: Commit and push logs (optional)
+    - name: Commit and push logs and RSS feed (optional)
       if: success()
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add logs/*.csv logs/*.html 2>/dev/null || true
+        git add logs/*.csv logs/*.html feed.xml 2>/dev/null || true
         if ! git diff --quiet --staged; then
-          git commit -m "Update paper digest logs [skip ci]" || exit 0
+          git commit -m "Update paper digest logs and RSS feed [skip ci]" || exit 0
           git push || exit 0
         fi
