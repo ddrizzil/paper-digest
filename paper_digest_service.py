@@ -541,8 +541,10 @@ def load_recipients() -> List[str]:
         # Can be comma-separated or newline-separated
         recipients = [e.strip() for e in env_recipients.replace(",", "\n").split("\n") if e.strip()]
         if recipients:
-            logger.info("Loaded %d recipient(s) from EMAIL_RECIPIENTS secret", len(recipients))
+            logger.info("Loaded %d recipient(s) from EMAIL_RECIPIENTS secret: %s", len(recipients), ", ".join(recipients))
             return recipients
+        else:
+            logger.warning("EMAIL_RECIPIENTS secret is set but empty after parsing")
     
     # Fallback: Read from file (for local testing or if secret not set)
     path = "config/emails.txt"
@@ -550,11 +552,15 @@ def load_recipients() -> List[str]:
         with open(path, encoding="utf-8") as f:
             recipients = [e.strip() for e in f if e.strip()]
             if recipients:
-                logger.info("Loaded %d recipient(s) from %s file", len(recipients), path)
+                logger.info("Loaded %d recipient(s) from %s file: %s", len(recipients), path, ", ".join(recipients))
                 return recipients
+            else:
+                logger.warning("emails.txt file exists but is empty")
+    else:
+        logger.info("emails.txt file not found at %s", path)
     
     # Final fallback: Use default recipient
-    logger.warning("No EMAIL_RECIPIENTS secret or emails.txt file found, using default recipient")
+    logger.warning("No EMAIL_RECIPIENTS secret or emails.txt file found, using default recipient: %s", DEFAULT_RECIPIENT)
     return [DEFAULT_RECIPIENT]
 
 def load_click_history() -> List[str]:
@@ -1366,6 +1372,17 @@ def email_digest(sections: List[Tuple[str, List[dict]]],
     smtp_pass = os.getenv("SMTP_PASS")
     recipients = load_recipients()
 
+    # Diagnostic logging
+    logger.info("Email digest check - SMTP_HOST: %s, SMTP_PORT: %s, SMTP_USER: %s, Recipients: %d", 
+                "SET" if smtp_host else "NOT SET",
+                smtp_port,
+                "SET" if smtp_user else "NOT SET",
+                len(recipients))
+    
+    if not recipients:
+        logger.error("No email recipients found! Check EMAIL_RECIPIENTS secret or config/emails.txt file.")
+        return
+
     msg = MIMEMultipart("alternative")
     subject_prefix = "Weekly" if mode == "weekly" else "Daily"
     msg["Subject"] = f"📚 {subject_prefix} Paper Digest – {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
@@ -1379,14 +1396,21 @@ def email_digest(sections: List[Tuple[str, List[dict]]],
         logger.warning("SMTP_HOST is not set; skipping email send.")
         return
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        if not smtp_user or not smtp_pass:
-            logger.warning("SMTP credentials missing; skipping email send.")
-            return
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(SENDER, recipients, msg.as_string())
-    logger.info("Email sent to %s", ", ".join(recipients))
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            logger.info("Connecting to SMTP server %s:%d", smtp_host, smtp_port)
+            server.starttls()
+            if not smtp_user or not smtp_pass:
+                logger.warning("SMTP credentials missing; skipping email send.")
+                return
+            logger.info("Logging in to SMTP server as %s", smtp_user)
+            server.login(smtp_user, smtp_pass)
+            logger.info("Sending email to: %s", ", ".join(recipients))
+            server.sendmail(SENDER, recipients, msg.as_string())
+        logger.info("Email successfully sent to %s", ", ".join(recipients))
+    except Exception as e:
+        logger.error("Failed to send email: %s", str(e), exc_info=True)
+        raise
 
 def has_priority_topic(paper: dict) -> bool:
     text = f"{paper.get('title', '')} {paper.get('summary', '')}".lower()
