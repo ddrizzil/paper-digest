@@ -1512,39 +1512,51 @@ def run_once() -> None:
     priority_ml = [p for p in ml_candidates if has_priority_topic(p)]
     nonpriority_ml = [p for p in ml_candidates if not has_priority_topic(p)]
 
-    recent_keys: set = set()
-    ml_recent: List[dict] = []
-    heritage_recent: List[dict] = []
-    half_target = RECENT_TARGET // 2 or 1
+    # Select exactly 5 RF papers and 5 cultural heritage papers
+    rf_keys: set = set()
+    rf_papers: List[dict] = []
+    rf_target = 5
 
-    def fill_recent_pool(source: List[dict], dest: List[dict], quota: int) -> None:
+    def fill_rf_pool(source: List[dict], dest: List[dict], quota: int) -> None:
         for paper in source:
             if len(dest) >= quota:
                 break
             key = normalize_key(paper)
-            if key in sent_keys_all or key in used_keys_run or key in recent_keys:
+            if key in sent_keys_all or key in used_keys_run or key in rf_keys:
                 continue
             dest.append(paper)
-            recent_keys.add(key)
+            rf_keys.add(key)
 
-    fill_recent_pool(priority_ml, ml_recent, half_target)
-    fill_recent_pool(nonpriority_ml, ml_recent, half_target)
-    fill_recent_pool(heritage_candidates, heritage_recent, half_target)
+    # Fill RF papers (prioritize priority ML topics)
+    fill_rf_pool(priority_ml, rf_papers, rf_target)
+    fill_rf_pool(nonpriority_ml, rf_papers, rf_target)
+    
+    # Limit to exactly 5 RF papers
+    rf_papers = sorted(rf_papers, key=lambda x: x["score"], reverse=True)[:rf_target]
 
-    recent = ml_recent + heritage_recent
-    for source in (priority_ml, nonpriority_ml, heritage_candidates, other_candidates):
-        if len(recent) >= RECENT_TARGET:
-            break
+    heritage_keys: set = set()
+    heritage_papers: List[dict] = []
+    heritage_target = 5
+
+    def fill_heritage_pool(source: List[dict], dest: List[dict], quota: int) -> None:
         for paper in source:
-            if len(recent) >= RECENT_TARGET:
+            if len(dest) >= quota:
                 break
             key = normalize_key(paper)
-            if key in sent_keys_all or key in used_keys_run or key in recent_keys:
+            if key in sent_keys_all or key in used_keys_run or key in heritage_keys or key in rf_keys:
                 continue
-            recent.append(paper)
-            recent_keys.add(key)
+            dest.append(paper)
+            heritage_keys.add(key)
 
-    register_selected(recent)
+    # Fill cultural heritage papers
+    fill_heritage_pool(heritage_candidates, heritage_papers, heritage_target)
+    
+    # Limit to exactly 5 heritage papers
+    heritage_papers = sorted(heritage_papers, key=lambda x: x["score"], reverse=True)[:heritage_target]
+
+    # Register selected papers
+    register_selected(rf_papers)
+    register_selected(heritage_papers)
 
     decade_candidates = [
         p for p in all_papers
@@ -1627,16 +1639,19 @@ def run_once() -> None:
             add_adjacent_candidate(paper)
             all_papers.append(paper)
 
-    adjacent = sorted(adjacent, key=lambda x: x["score"], reverse=True)[:ADJACENT_TARGET]
+    # Limit adjacent to exactly 5 papers
+    adjacent_target = 5
+    adjacent = sorted(adjacent, key=lambda x: x["score"], reverse=True)[:adjacent_target]
 
     register_selected(adjacent)
 
     all_papers.extend(adjacent_crossref + adjacent_scholar)
 
+    # Organize sections: 5 RF, 5 Cultural Heritage, 5 Adjacent
     sections = [
-        ("Recent (≤1 year)", recent),
-        ("Last 10 years", last_decade),
-        ("Adjacent opportunities", adjacent)
+        ("RF Systems & Machine Learning", rf_papers),
+        ("Cultural Heritage & Imaging", heritage_papers),
+        ("Adjacent Studies", adjacent)
     ]
 
     dedup_sections = []
