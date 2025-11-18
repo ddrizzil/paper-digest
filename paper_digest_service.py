@@ -535,12 +535,27 @@ def ensure_summary_text(paper: dict) -> None:
     paper["summary"] = f"Summary unavailable. Refer to the full text for details. {year}".strip()
 
 def load_recipients() -> List[str]:
+    # Primary: Check for EMAIL_RECIPIENTS GitHub Secret
+    env_recipients = os.getenv("EMAIL_RECIPIENTS", "").strip()
+    if env_recipients:
+        # Can be comma-separated or newline-separated
+        recipients = [e.strip() for e in env_recipients.replace(",", "\n").split("\n") if e.strip()]
+        if recipients:
+            logger.info("Loaded %d recipient(s) from EMAIL_RECIPIENTS secret", len(recipients))
+            return recipients
+    
+    # Fallback: Read from file (for local testing or if secret not set)
     path = "config/emails.txt"
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(f"{DEFAULT_RECIPIENT}\n")
-    with open(path, encoding="utf-8") as f:
-        return [e.strip() for e in f if e.strip()]
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            recipients = [e.strip() for e in f if e.strip()]
+            if recipients:
+                logger.info("Loaded %d recipient(s) from %s file", len(recipients), path)
+                return recipients
+    
+    # Final fallback: Use default recipient
+    logger.warning("No EMAIL_RECIPIENTS secret or emails.txt file found, using default recipient")
+    return [DEFAULT_RECIPIENT]
 
 def load_click_history() -> List[str]:
     """Load clicked paper titles for personalization."""

@@ -42,6 +42,7 @@ jobs:
         SMTP_USER: ${{ secrets.SMTP_USER }}
         SMTP_PASS: ${{ secrets.SMTP_PASS }}
         DIGEST_MODE: ${{ secrets.DIGEST_MODE || 'daily' }}
+        EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}  # Optional: comma or newline separated
       run: |
         python paper_digest_service.py
       continue-on-error: false
@@ -65,4 +66,28 @@ jobs:
         if ! git diff --quiet --staged; then
           git commit -m "Update paper digest logs and RSS feed [skip ci]" || exit 0
           git push || exit 0
+        fi
+    
+    - name: Publish RSS feed to public repo (if feed exists)
+      if: success() && hashFiles('feed.xml') != ''
+      env:
+        PUBLIC_REPO_TOKEN: ${{ secrets.PUBLIC_FEED_REPO_TOKEN }}
+        PUBLIC_REPO: ${{ secrets.PUBLIC_FEED_REPO }}  # Format: username/repo-name
+      run: |
+        if [ -f "feed.xml" ] && [ -n "$PUBLIC_REPO_TOKEN" ] && [ -n "$PUBLIC_REPO" ]; then
+          # Clone the public repo
+          git clone "https://${PUBLIC_REPO_TOKEN}@github.com/${PUBLIC_REPO}.git" public-feed || exit 0
+          cd public-feed
+          
+          # Copy feed.xml
+          cp ../feed.xml feed.xml
+          
+          # Commit and push
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add feed.xml
+          if ! git diff --quiet --staged; then
+            git commit -m "Update RSS feed [skip ci]" || exit 0
+            git push || exit 0
+          fi
         fi
