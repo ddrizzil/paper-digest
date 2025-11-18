@@ -1339,10 +1339,10 @@ def email_digest(sections: List[Tuple[str, List[dict]]],
     from email.mime.text import MIMEText
 
     smtp_host = os.getenv("SMTP_HOST")
-    smtp_port_str = os.getenv("SMTP_PORT", "587")
+    smtp_port_str = os.getenv("SMTP_PORT") or "587"
     try:
-        smtp_port = int(smtp_port_str) if smtp_port_str else 587
-    except (ValueError, TypeError):
+        smtp_port = int(smtp_port_str.strip()) if smtp_port_str and smtp_port_str.strip() else 587
+    except (ValueError, TypeError, AttributeError):
         smtp_port = 587
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
