@@ -1446,11 +1446,11 @@ def run_once() -> None:
             paper["score"] = enhanced_score(paper, now, learned_weights)
             papers.append(paper)
 
-    history_papers, sent_history_keys = load_history_papers(seen_links)
-    all_papers = papers + history_papers
+    # History loading removed - no longer tracking paper database
+    all_papers = papers
     seen_keys = {normalize_key(p) for p in all_papers}
 
-    sent_keys_all = set(sent_history_keys)
+    sent_keys_all = set()
     used_keys_run: set = set()
 
     def register_selected(selected: List[dict]) -> None:
@@ -1458,11 +1458,6 @@ def run_once() -> None:
             key = normalize_key(entry)
             used_keys_run.add(key)
             sent_keys_all.add(key)
-
-    # Evaluate scores for history entries using current weights.
-    for paper in history_papers:
-        if paper.get("score") in (None, 0):
-            paper["score"] = enhanced_score(paper, now, learned_weights)
 
     all_papers = [p for p in all_papers if p.get("published")]
     ensure_scores(all_papers, now, learned_weights)
@@ -1623,9 +1618,8 @@ def run_once() -> None:
         dedup_sections = cluster_weekly_sections(all_papers)
 
     logger.info(
-        "Paper pools – rss:%d history:%d decade_crossref:%d decade_scholar:%d adjacent_crossref:%d adjacent_scholar:%d recent:%d decade:%d adjacent:%d",
+        "Paper pools – rss:%d decade_crossref:%d decade_scholar:%d adjacent_crossref:%d adjacent_scholar:%d recent:%d decade:%d adjacent:%d",
         len(papers),
-        len(history_papers),
         len(decade_crossref),
         len(decade_scholar),
         len(adjacent_crossref),
@@ -1635,7 +1629,7 @@ def run_once() -> None:
         len(adjacent)
     )
 
-    log_papers(dedup_sections)
+    # Paper logging removed - no longer maintaining paper database
     build_html_archive()
     build_rss_feed(dedup_sections)
     email_digest(dedup_sections, weight_stats, DIGEST_MODE)
