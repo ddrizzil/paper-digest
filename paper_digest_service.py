@@ -1600,18 +1600,19 @@ def run_once() -> None:
         "nonlinear", "radar", "climate", "environment", "biodiversity",
         "sustainability", "commercial radar", "art conservation", "optical"
     ]
+    adjacent_target = 5
     candidate_pool = sorted(all_papers, key=lambda x: (x["published"], x["score"]), reverse=True)
     for candidate in candidate_pool:
         text = (candidate["title"] + " " + candidate.get("summary", "")).lower()
         if any(word in text for word in trigger_keywords):
             add_adjacent_candidate(candidate)
-        if len(adjacent) >= ADJACENT_TARGET:
+        if len(adjacent) >= adjacent_target:
             break
 
     adjacent_crossref: List[dict] = []
     adjacent_scholar: List[dict] = []
-    if len(adjacent) < ADJACENT_TARGET:
-        needed_adj = ADJACENT_TARGET - len(adjacent)
+    if len(adjacent) < adjacent_target:
+        needed_adj = adjacent_target - len(adjacent)
         adjacent_crossref = fetch_crossref_papers(
             now.year - 7,
             now.year,
